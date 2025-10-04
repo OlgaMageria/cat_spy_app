@@ -1,8 +1,8 @@
 """Init
 
-Revision ID: 641a9341f720
+Revision ID: 40fd09b51b8b
 Revises: 
-Create Date: 2025-10-03 15:37:05.622161
+Create Date: 2025-10-04 17:06:28.853267
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '641a9341f720'
+revision: str = '40fd09b51b8b'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -24,11 +24,15 @@ def upgrade() -> None:
     op.create_table('cats',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('name', sa.String(length=50), nullable=False),
+    sa.Column('password', sa.String(length=255), nullable=False),
+    sa.Column('refresh_token', sa.String(length=255), nullable=True),
+    sa.Column('reset_token', sa.String(length=255), nullable=True),
     sa.Column('years_of_experience', sa.Integer(), nullable=False),
     sa.Column('breed', sa.String(length=50), nullable=False),
     sa.Column('salary', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.Column('is_staff', sa.Boolean(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('missions',
@@ -36,7 +40,7 @@ def upgrade() -> None:
     sa.Column('name', sa.String(length=100), nullable=False),
     sa.Column('description', sa.String(length=255), nullable=True),
     sa.Column('is_completed', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
@@ -53,7 +57,7 @@ def upgrade() -> None:
     sa.Column('country', sa.String(length=100), nullable=False),
     sa.Column('is_completed', sa.Boolean(), nullable=False),
     sa.Column('mission_id', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['mission_id'], ['missions.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -63,7 +67,7 @@ def upgrade() -> None:
     sa.Column('content', sa.String(length=255), nullable=False),
     sa.Column('cat_id', sa.Integer(), nullable=False),
     sa.Column('target_id', sa.Integer(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['cat_id'], ['cats.id'], ),
     sa.ForeignKeyConstraint(['target_id'], ['targets.id'], ),

@@ -17,6 +17,10 @@ from src.infrastructure.database.repositories.cats import (
     get_cat_repository,
     CatRepository,
 )
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 CREDENTIALS_EXCEPTION = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -33,12 +37,22 @@ async def signup(
     body: CatModel,
     cat_repository: CatRepository = Depends(get_cat_repository),
 ):
+    """Register a new cat account.
+    
+    - Validate breed using external API
+    - Check for existing cat with the same name
+    - Hash password and create new cat account"""
+    # Validate cat breed
+    await cat_repository.validate_breed(body.breed)
+
+    # Check if cat with the same name already exists
     exist_cat = await cat_repository.get_by_name(body.name)
     if exist_cat:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Account already exists"
         )
 
+    # Hash the password and create the new cat
     body.password = password_service.get_password_hash(body.password)
     new_cat = await cat_repository.create(body)
     return new_cat
@@ -49,6 +63,11 @@ async def login(
     body: OAuth2PasswordRequestForm = Depends(),
     cat_repository: CatRepository = Depends(get_cat_repository),
 ):
+    """Login to get access and refresh tokens.
+    
+    - Verify cat credentials
+    - Generate JWT access and refresh tokens
+    - Store refresh token in the database"""
     cat = await cat_repository.get_by_name(body.username)
     if not cat:
         raise HTTPException(
@@ -71,7 +90,6 @@ async def login(
 @router.get("/refresh_token", response_model=TokenModel)
 async def refresh_token(
     credentials: HTTPAuthorizationCredentials = Depends(get_refresh_token),
-    current_cat: Cat = Depends(auth_service.get_current_cat),
     cat_repository: CatRepository = Depends(get_cat_repository),
 ):
     token = credentials.credentials
@@ -103,16 +121,21 @@ async def forgot_password(
     request: Request,
     cat_repository: CatRepository = Depends(get_cat_repository),
 ):
+    """Initiate password reset process by sending a reset link to the cat's email.
+    
+    - Verify cat exists with the provided email
+    - Generate a password reset token
+    - Send reset link via email (simulated here by returning the link)"""
     cat = await cat_repository.get_by_name(body.name)
     if cat is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Cat not found"
         )
-    reset_token = auth_service.create_email_token({"sub": body.email})
+    reset_token = auth_service.create_reset_token({"sub": body.name})
 
     await cat_repository.store_reset_token(cat.name, reset_token)
 
-    return {"message": "Reset password link sent to your email"}
+    return reset_token
 
 
 @router.post("/reset_password/{token}")
@@ -120,14 +143,14 @@ async def reset_password(
     body: PasswordReset,
     cat_repository: CatRepository = Depends(get_cat_repository),
 ):
-    name = await auth_service.get_name_from_token(body.token)
+    name = await auth_service.get_name_from_token(body.token, cat_repository)
     cat = await cat_repository.get_by_name(name)
 
     if cat is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Cat not found"
         )
-    if not await cat_repository.verify_reset_token(cat.name, body.token):
+    if not await cat_repository.verify_reset_token(body.token):
         raise HTTPException(status_code=400, detail="Invalid or expired token")
     await cat_repository.update_password(cat.name, body.new_password)
     return {"message": "Password reset successfully"}

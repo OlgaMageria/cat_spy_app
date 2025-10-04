@@ -5,10 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from src.presentation.rest.auth import router as auth_router
-# from src.presentation.rest.users import router as users_router
-# from src.presentation.rest.issues import router as issues_router
-# from src.presentation.rest.chat import router as chat_router
-# from src.presentation.rest.manager import router as manager_router
+from src.presentation.rest.cats import router as cats_router
 from src.presentation.rest.admin import router as admin_router
 
 from src.infrastructure.database.session import get_db
@@ -35,10 +32,7 @@ def register_routers(app, routers: List[APIRouter], prefix: str = "/api") -> Non
 
 api_routers = [
     auth_router,
-#     users_router,
-#     issues_router,
-#     chat_router,
-#     manager_router,
+    cats_router,
     admin_router,
 ]
 

@@ -31,11 +31,11 @@ class Cat(Base):
     reset_token: Mapped[str] = mapped_column(String(255), nullable=True)
     years_of_experience: Mapped[int] = mapped_column(Integer, nullable=False)
     breed: Mapped[str] = mapped_column(String(50), nullable=False)
-    salary: Mapped[int] = mapped_column(Integer, nullable=False)
+    salary: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[date] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[date] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
     is_staff: Mapped[bool] = mapped_column(Boolean, default=False)
-    cat_note = relationship("Notes", foreign_keys="[Notes.cat_id]", back_populates="note_cat")
+    cat_note = relationship("Note", foreign_keys="[Note.cat_id]", back_populates="note_cat")
     mission = relationship("Mission", secondary=mission_cat, back_populates="cat")
 
 class Mission(Base):
@@ -47,7 +47,7 @@ class Mission(Base):
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[date] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[date] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
-    mission_target = relationship("Target", foreign_keys="[Target.mission_id]", back_populates="target_mission")
+    mission_target = relationship("Target", foreign_keys="[Target.mission_id]", back_populates="target_mission", cascade="all, delete-orphan")
     cat = relationship("Cat", secondary=mission_cat, back_populates="mission")
 
 class Target(Base):
@@ -61,9 +61,9 @@ class Target(Base):
     created_at: Mapped[date] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[date] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
     target_mission = relationship("Mission", foreign_keys=[mission_id], back_populates="mission_target")
-    target_notes = relationship("Notes", foreign_keys="[Notes.target_id]", back_populates="note_target")
+    target_notes = relationship("Note", foreign_keys="[Note.target_id]", back_populates="note_target")
 
-class Notes(Base):
+class Note(Base):
     __tablename__ = "notes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

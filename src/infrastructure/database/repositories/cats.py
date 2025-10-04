@@ -1,3 +1,4 @@
+import httpx
 from typing import Optional
 from fastapi import HTTPException, status, Depends
 from sqlalchemy import select, func
@@ -6,9 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.database.session import get_db
 from src.infrastructure.database.models.tables import Cat
 from src.application.password_service import password_service
-from src.presentation.schemas.cats import CatCreate, CatUpdate
+from src.presentation.schemas.cats import CatCreate
 
 class CatRepository:
+    """Repository for managing Cat entities in the database."""
     def __init__(self, db: AsyncSession = Depends(get_db)):
         self.db = db
 
@@ -28,6 +30,26 @@ class CatRepository:
         result = await self.db.execute(select(Cat))
         return result.scalars().all()
 
+    async def validate_breed(self, breed: str) -> bool:
+        CAT_API_URL = "https://api.thecatapi.com/v1/breeds"
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(CAT_API_URL)
+                response.raise_for_status()
+                breeds = response.json()
+                breed_names = [b['name'].lower() for b in breeds]
+
+                if breed.lower() not in breed_names:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Invalid breed: {breed}. Please use a valid cat breed."
+                    )
+            except httpx.HTTPError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Failed to validate breed due to external API error."
+                ) from e
+
     async def create(self, body: CatCreate) -> Cat:
         cat_data = body.model_dump()
         new_cat = Cat(**cat_data)
@@ -36,9 +58,9 @@ class CatRepository:
         await self.db.refresh(new_cat)
         return new_cat
 
-    async def update_salary(self, cat: Cat, body: CatUpdate) -> Cat:
-        if body.salary:
-            cat.salary = body.salary
+    async def update_salary(self, cat: Cat, salary: int) -> Cat:
+        if salary:
+            cat.salary = salary
         await self.db.commit()
         await self.db.refresh(cat)
         return cat
@@ -78,10 +100,16 @@ class CatRepository:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Cat not found"
             )
-        hashed_password = password_service.hash_password(new_password)
+        hashed_password = password_service.get_password_hash(new_password)
         cat.password = hashed_password
         await self.db.commit()
         return cat
+    
+    async def count_cat_missions(self, cat_id: int) -> int:
+        result = await self.db.execute(
+            select(func.count()).select_from(Cat).join(Cat.mission).where(Cat.id == cat_id)
+        )
+        return result.scalar_one()
 
 async def get_cat_repository(db: AsyncSession = Depends(get_db)) -> CatRepository:
     return CatRepository(db)

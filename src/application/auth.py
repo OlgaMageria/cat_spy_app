@@ -10,7 +10,10 @@ from src.infrastructure.database.repositories.cats import (
     get_cat_repository,
     CatRepository,
 )
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 CREDENTIALS_EXCEPTION = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -66,7 +69,7 @@ class Auth:
         try:
             payload = jwt.decode(
                 refresh_token, self.SECRET_KEY, algorithms=[self.ALGORITHM]
-            )
+        )
             if payload["scope"] == "refresh_token":
                 username = payload["sub"]
                 return username
@@ -113,6 +116,28 @@ class Auth:
                 detail="The user doesn't have enough privileges",
             )
         return current_cat
+
+    def create_reset_token(self, data: dict):
+        to_encode = data.copy()
+        now_utc = self._get_current_time()
+        expire = now_utc + timedelta(days=1)
+        to_encode.update({"iat": now_utc, "exp": expire})
+        token = jwt.encode(to_encode, self.SECRET_KEY, algorithm=self.ALGORITHM)
+        return token
+
+    async def get_name_from_token(self, token: str, cat_repository: CatRepository):
+        try:
+            payload = jwt.decode(token, self.SECRET_KEY, algorithms=[self.ALGORITHM])
+            name = payload["sub"]
+            cat = await cat_repository.get_by_name(name)
+            return cat.name
+        except JWTError as e:
+            print(e)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid token for verification",
+            )
+
 
     async def get_current_cat_token(self, token: str = Depends(oauth2_scheme)):
         return token

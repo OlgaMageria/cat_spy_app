@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional
 
 from datetime import datetime
@@ -13,8 +13,12 @@ class CatModel(BaseModel):
     name: str = Field(..., max_length=50)
     years_of_experience: int = Field(..., ge=0)
     breed: str = Field(..., max_length=50)
-    salary: int = Field(..., ge=0)
     password: str = Field(..., min_length=8)
+
+    @field_validator('breed')
+    @classmethod
+    def normalize_breed(cls, v: str) -> str:
+        return v.lower().strip()
 
 class CatCreate(CatBase):
     password: str
@@ -31,8 +35,12 @@ class CatResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class CatUpdate(CatBase):
+class CatProfile(BaseModel):
+    name: str
+    years_of_experience: int
+    breed: str
     salary: Optional[int] = None
+    created_at: datetime
 
 class TokenModel(BaseModel):
     access_token: str
