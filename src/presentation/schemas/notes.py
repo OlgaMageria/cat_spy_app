@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional
 from datetime import datetime
+from uuid import UUID
 
 class NoteCreate(BaseModel):
     content: str = Field(..., min_length=1, max_length=500)
@@ -11,9 +11,9 @@ class NoteCreate(BaseModel):
         return v.strip()
 
 class NoteResponse(BaseModel):
-    id: int
+    uuid: UUID
     content: str
-    target_id: int
+    target_uuid: UUID
     created_at: datetime
     
     class Config:

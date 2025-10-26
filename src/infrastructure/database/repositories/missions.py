@@ -2,16 +2,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status
+from uuid import UUID
 
-from src.infrastructure.database.models.tables import Mission, Target, Cat, mission_cat
-
-from src.infrastructure.database.session import get_db
+from src.infrastructure.database.models.tables import Mission, Target, Cat, mission_cats
+from src.domain.entities.mission import MissionStatus, Mission as MissionEntity
 from src.presentation.schemas.missions import MissionCreate
 
 class MissionRepository:
     """Repository for managing Mission entities in the database."""
-    def __init__(self, db: AsyncSession = Depends(get_db)):
+    def __init__(self, db: AsyncSession):
         self.db = db
     
     async def create(self, body: MissionCreate) -> Mission:
@@ -22,40 +22,41 @@ class MissionRepository:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Mission with this name {body.name} already exists."
             )
-       
-        # Assign cats if provided
-        if body.cat_ids:
+       # Assign cats if provided
+        if body.cat_uuids:
+            mission_status = MissionStatus.IN_PROGRESS.value
             result = await self.db.execute(
-                select(Cat).where(Cat.id.in_(body.cat_ids))
+                select(Cat).where(Cat.uuid.in_(body.cat_uuids))
             )
             cats = result.scalars().all()
-            
-            if len(cats) != len(body.cat_ids):
-                found_ids = {cat.id for cat in cats}
-                missing_ids = set(body.cat_ids) - found_ids
+
+            if len(cats) != len(body.cat_uuids):
+                found_uuids = {cat.uuid for cat in cats}
+                missing_uuids = set(body.cat_uuids) - found_uuids
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Cats not found: {missing_ids}"
+                    detail=f"Cats not found: {missing_uuids}"
                 )
             # Check if any cat is already assigned to a mission
             cats_with_missions = []
             for cat in cats:
                 # Check if cat has any missions assigned
                 mission_check = await self.db.execute(
-                    select(mission_cat).where(mission_cat.c.cat_id == cat.id)
+                    select(mission_cats).where(mission_cats.c.cat_uuid == cat.uuid)
                 )
                 if mission_check.first():
-                    cats_with_missions.append(cat.id)
-            
+                    cats_with_missions.append(cat.uuid)
+
             if cats_with_missions:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Cats with ID {cats_with_missions[0]} are already assigned to missions. Each cat can only have one mission."
+                    detail=f"Cats with UUID {cats_with_missions[0]} are already assigned to missions. Each cat can only have one mission."
                 )
         # Create mission with targets relationship
         mission = Mission(
             name=body.name,
             description=body.description,
+            status=mission_status if body.cat_uuids else MissionStatus.PENDING.value,
             mission_target=[
                 Target(
                     name=target.name,
@@ -66,27 +67,27 @@ class MissionRepository:
         )
         
         # Assign cats after validation
-        if body.cat_ids:
+        if body.cat_uuids:
             mission.cat.extend(cats)
         
         self.db.add(mission)
         await self.db.flush()
-        mission_id = mission.id  # Access ID after flush
+        mission_uuid = mission.uuid  # Access UUID after flush
         await self.db.commit()
 
         result = await self.db.execute(
         select(Mission)
-        .where(Mission.id == mission_id)
+        .where(Mission.uuid == mission_uuid)
         .options(selectinload(Mission.mission_target))
         .options(selectinload(Mission.cat))
     )
         return result.scalar_one()
 
-    async def get_by_id(self, mission_id: int) -> Optional[Mission]:
-        """Get mission by id with all relationships loaded"""
+    async def get_by_uuid(self, mission_uuid: UUID) -> Optional[Mission]:
+        """Get mission by uuid with all relationships loaded"""
         result = await self.db.execute(
             select(Mission)
-            .where(Mission.id == mission_id)
+            .where(Mission.uuid == mission_uuid)
             .options(selectinload(Mission.mission_target))
             .options(selectinload(Mission.cat))
         )
@@ -108,8 +109,8 @@ class MissionRepository:
         )
         return result.scalars().all()
 
-    async def delete_mission_by_id(self, mission_id: int) -> None:
-        mission = await self.get_by_id(mission_id)
+    async def delete_mission_by_uuid(self, mission_uuid: UUID) -> None:
+        mission = await self.get_by_uuid(mission_uuid)
         if not mission:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -123,49 +124,66 @@ class MissionRepository:
         await self.db.delete(mission)
         await self.db.commit()
 
-    async def set_completed_mission(self, mission_id: int) -> Mission:
-        mission = await self.get_by_id(mission_id)
+    async def set_completed_mission(self, mission_uuid: UUID) -> Mission:
+        mission = await self.get_by_uuid(mission_uuid)
         if not mission:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Mission not found"
             )
-        mission.is_completed = True
-        for target in mission.mission_target:
-            target.is_completed = True
+        domain_mission = MissionEntity(
+            uuid=mission.uuid,
+            name=mission.name,
+            description=mission.description,
+            status=mission.status,
+            created_at=mission.created_at,
+            updated_at=mission.updated_at,
+            completed_at=mission.completed_at,
+            cat_uuids=[cat.uuid for cat in mission.cat]
+        )
+        domain_mission.complete()
+        mission.status = domain_mission.status
+        mission.updated_at = domain_mission.updated_at
+        mission.completed_at = domain_mission.completed_at
         await self.db.commit()
-        await self.db.refresh(mission)
         return mission
-    
-    async def assigne_cats_to_mission(self, mission_id: int, cat_ids: List[int]) -> Mission:
-        mission = await self.get_by_id(mission_id)
+
+    async def assign_cats_to_mission(self, mission_uuid: UUID, cat_uuids: List[UUID]) -> Mission:
+        mission = await self.get_by_uuid(mission_uuid)
         if not mission:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Mission not found"
             )
-        
+
+        if mission.status in [MissionStatus.COMPLETED.value, MissionStatus.CANCELLED.value]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot assign cats to a {mission.status} mission"
+            )
+
         result = await self.db.execute(
-            select(Cat).where(Cat.id.in_(cat_ids))
+            select(Cat).where(Cat.uuid.in_(cat_uuids))
         )
         cats = result.scalars().all()
         
-        if len(cats) != len(cat_ids):
-            found_ids = {cat.id for cat in cats}
-            missing_ids = set(cat_ids) - found_ids
+        if len(cats) != len(cat_uuids):
+            found_uuids = {cat.uuid for cat in cats}
+            missing_uuids = set(cat_uuids) - found_uuids
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Cats not found: {missing_ids}"
+                detail=f"Cats not found: {missing_uuids}"
             )
         
         mission.cat.extend(cats)
+        mission.status = MissionStatus.IN_PROGRESS.value
         await self.db.commit()
         await self.db.refresh(mission)
         return mission
 
-    async def set_completed_target(self, target_id: int) -> Target:
+    async def set_completed_target(self, target_uuid: UUID) -> Target:
         result = await self.db.execute(
-            select(Target).where(Target.id == target_id)
+            select(Target).where(Target.uuid == target_uuid)
         )
         target = result.scalar_one_or_none()
         if not target:
@@ -177,6 +195,3 @@ class MissionRepository:
         await self.db.commit()
         await self.db.refresh(target)
         return target
-
-async def get_mission_repository(db: AsyncSession = Depends(get_db)) -> MissionRepository:
-    return MissionRepository(db)

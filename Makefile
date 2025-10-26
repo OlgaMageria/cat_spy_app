@@ -1,9 +1,9 @@
-.PHONY: migrate up build dev
+.PHONY: migrate run build dev
 
 build:
 	docker compose up --build -d
 
-up:
+run:
 	docker compose up
 
 down:

@@ -4,6 +4,7 @@ from fastapi.security import (
     HTTPBearer,
     OAuth2PasswordRequestForm,
 )
+from uuid import UUID
 from src.infrastructure.database.models.tables import Cat
 from src.presentation.schemas.cats import (
     TokenModel,
@@ -14,9 +15,9 @@ from src.presentation.schemas.cats import (
 from src.application.auth import auth_service
 from src.application.password_service import password_service
 from src.infrastructure.database.repositories.cats import (
-    get_cat_repository,
     CatRepository,
 )
+from src.presentation.dependencies import get_cat_repository
 import logging
 
 logging.basicConfig(level=logging.INFO)

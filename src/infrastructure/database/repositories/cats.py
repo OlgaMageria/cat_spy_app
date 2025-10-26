@@ -1,21 +1,21 @@
 import httpx
 from typing import Optional
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 
-from src.infrastructure.database.session import get_db
 from src.infrastructure.database.models.tables import Cat
 from src.application.password_service import password_service
 from src.presentation.schemas.cats import CatCreate
 
 class CatRepository:
     """Repository for managing Cat entities in the database."""
-    def __init__(self, db: AsyncSession = Depends(get_db)):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_by_id(self, cat_id: int) -> Optional[Cat]:
-        result = await self.db.execute(select(Cat).where(Cat.id == cat_id))
+    async def get_by_uuid(self, cat_uuid: UUID) -> Optional[Cat]:
+        result = await self.db.execute(select(Cat).where(Cat.uuid == cat_uuid))
         return result.scalars().first()
 
     async def get_by_name(self, name: str) -> Optional[Cat]:
@@ -65,8 +65,8 @@ class CatRepository:
         await self.db.refresh(cat)
         return cat
 
-    async def delete_by_id(self, cat_id: int) -> None:
-        cat = await self.get_by_id(cat_id)
+    async def delete_by_uuid(self, cat_uuid: UUID) -> None:
+        cat = await self.get_by_uuid(cat_uuid)
         if cat:
             await self.db.delete(cat)
             await self.db.commit()
@@ -104,12 +104,9 @@ class CatRepository:
         cat.password = hashed_password
         await self.db.commit()
         return cat
-    
-    async def count_cat_missions(self, cat_id: int) -> int:
+
+    async def count_cat_missions(self, cat_uuid: UUID) -> int:
         result = await self.db.execute(
-            select(func.count()).select_from(Cat).join(Cat.mission).where(Cat.id == cat_id)
+            select(func.count()).select_from(Cat).join(Cat.mission).where(Cat.uuid == cat_uuid)
         )
         return result.scalar_one()
-
-async def get_cat_repository(db: AsyncSession = Depends(get_db)) -> CatRepository:
-    return CatRepository(db)

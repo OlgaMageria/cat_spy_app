@@ -1,22 +1,25 @@
 from fastapi import APIRouter, Depends, status
+from uuid import UUID
 
 from src.infrastructure.database.models.tables import Cat
 from src.infrastructure.database.repositories.cats import (
-    get_cat_repository,
     CatRepository,
 )
 from src.infrastructure.database.repositories.notes import (
-    NoteRepository,
-    get_note_repository
+    NoteRepository
 )
 from src.infrastructure.database.repositories.targets import (
-    TargetRepository,
-    get_target_repository
+    TargetRepository
 )
 from src.application.auth import get_current_cat
 from src.presentation.schemas.cats import CatProfile
 from src.presentation.schemas.notes import NoteCreate, NoteResponse
 from src.presentation.schemas.targets import TargetResponse
+from src.presentation.dependencies import (
+    get_cat_repository,
+    get_target_repository,
+    get_note_repository,
+)
 
 
 router = APIRouter(prefix="/cats", tags=["Cats"])
@@ -36,29 +39,54 @@ async def get_my_cat(
     )
     return my_cat
 
-@router.put("/target/complete/{target_id}", response_model=TargetResponse, status_code=status.HTTP_200_OK)
+@router.put("/target/{target_uuid}/assign", status_code=status.HTTP_200_OK)
+async def assign_cat_to_target(
+    target_uuid: UUID,
+    target_repository: TargetRepository = Depends(get_target_repository),
+    current_cat: Cat = Depends(get_current_cat),
+):
+    await target_repository.assign_cat_to_target(target_uuid, current_cat.uuid)
+
+@router.get("/target/{target_uuid}", response_model=TargetResponse)
+async def get_target_by_uuid(
+    target_uuid: UUID,
+    target_repository: TargetRepository = Depends(get_target_repository),
+    current_cat: Cat = Depends(get_current_cat),
+):
+    target = await target_repository.get_target_by_uuid(target_uuid, current_cat.uuid)
+    return target
+
+@router.get("/targets", response_model=list[TargetResponse])
+async def get_my_targets(
+    target_repository: TargetRepository = Depends(get_target_repository),
+    current_cat: Cat = Depends(get_current_cat),
+):
+    targets = await target_repository.get_all_targets_for_cat(current_cat.uuid)
+    return targets
+
+@router.put("/target/complete/{target_uuid}", response_model=TargetResponse, status_code=status.HTTP_200_OK)
 async def complete_target(
-    target_id: int,
+    target_uuid: UUID,
     target_repository: TargetRepository = Depends(get_target_repository),
     current_cat: Cat = Depends(get_current_cat),
 ):
     target = await target_repository.set_completed_target(
-        target_id=target_id,
+        target_uuid=target_uuid,
         current_cat=current_cat
     )
     return target
 
-@router.post("/target/{target_id}", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/target-note/{target_uuid}", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
 async def create_note_for_target(
-    target_id: int,
+    target_uuid: UUID,
     note_create: NoteCreate,
     note_repository: NoteRepository = Depends(get_note_repository),
     current_cat: Cat = Depends(get_current_cat),
 ):
     note = await note_repository.create(
-        target_id=target_id,
+        target_uuid=target_uuid,
         content=note_create.content,
-        cat_id=current_cat.id
+        cat_uuid=current_cat.uuid
     )
     return note
 
@@ -67,19 +95,19 @@ async def get_notes(
     note_repository: NoteRepository = Depends(get_note_repository),
     current_cat: Cat = Depends(get_current_cat),
 ):
-    return await note_repository.get_all_for_cat(current_cat.id)
+    return await note_repository.get_all_for_cat(current_cat.uuid)
 
-@router.put("/note/{note_id}", response_model=NoteResponse)
+@router.put("/note/{note_uuid}", response_model=NoteResponse)
 async def update_note(
-    note_id: int,
+    note_uuid: UUID,
     note_update: NoteCreate,
     note_repository: NoteRepository = Depends(get_note_repository),
     current_cat: Cat = Depends(get_current_cat),
 ):
     updated_note = await note_repository.update_note(
-        note_id=note_id,
+        note_uuid=note_uuid,
         new_content=note_update.content,
-        cat_id=current_cat.id
+        cat_uuid=current_cat.uuid
     )
     return updated_note
 
