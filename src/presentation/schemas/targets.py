@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
+from uuid import UUID
 
 class TargetCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -11,11 +12,11 @@ class TargetCreate(BaseModel):
         return v.strip()
 
 class TargetResponse(BaseModel):
-    id: int
+    uuid: UUID
     name: str
     country: str
-    is_completed: bool
-    mission_id: int
+    status: str
+    mission_uuid: UUID
     created_at: datetime
     
     class Config:

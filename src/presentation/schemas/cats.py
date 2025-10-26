@@ -3,6 +3,8 @@ from typing import Optional
 
 from datetime import datetime
 
+from uuid import UUID
+
 class CatBase(BaseModel):
     name: str
     years_of_experience: int
@@ -24,7 +26,7 @@ class CatCreate(CatBase):
     password: str
 
 class CatResponse(BaseModel):
-    id: int
+    uuid: UUID
     name: str
     years_of_experience: int
     breed: str

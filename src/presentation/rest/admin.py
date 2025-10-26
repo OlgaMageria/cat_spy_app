@@ -1,16 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from uuid import UUID
 
 from src.application.auth import get_current_admin
 from src.presentation.schemas.cats import CatResponse
 from src.presentation.schemas.missions import MissionCreate, MissionResponse, AssignCatsRequest
 from src.infrastructure.database.models.tables import Cat
 from src.infrastructure.database.repositories.cats import (
-    get_cat_repository,
     CatRepository,
 )
 from src.infrastructure.database.repositories.missions import (
-    get_mission_repository,
     MissionRepository,
+)
+from src.presentation.dependencies import (
+    get_cat_repository,
+    get_mission_repository,
 )
 
 
@@ -39,15 +42,15 @@ async def get_cat_by_name(
         )
     return cats_by_query
 
-@router.put("/cats/update/{cat_id}", response_model=CatResponse)
+@router.put("/cats/update/{cat_uuid}", response_model=CatResponse)
 async def update_cat_salary(
-    cat_id: int,
+    cat_uuid: UUID,
     salary: int = Query(..., ge=0),
     cat_repository: CatRepository = Depends(get_cat_repository),
     current_cat: Cat = Depends(get_current_admin),
 ):
     """Update a cat's salary. Admin access required."""
-    cat = await cat_repository.get_by_id(cat_id)
+    cat = await cat_repository.get_by_uuid(cat_uuid)
     if not cat:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Cat not found"
@@ -55,29 +58,29 @@ async def update_cat_salary(
     updated_cat = await cat_repository.update_salary(cat, salary)
     return updated_cat
 
-@router.delete("/cats/delete/{cat_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_cat_by_id(
-    cat_id: int,
+@router.delete("/cats/delete/{cat_uuid}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_cat_by_uuid(
+    cat_uuid: UUID,
     cat_repository: CatRepository = Depends(get_cat_repository),
     current_cat: Cat = Depends(get_current_admin),
 ):
-    """Delete a cat by its ID. Admin access required."""
-    cat = await cat_repository.get_by_id(cat_id)
+    """Delete a cat by its UUID. Admin access required."""
+    cat = await cat_repository.get_by_uuid(cat_uuid)
     if not cat:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Cat not found"
         )
-    await cat_repository.delete_by_id(cat_id)
+    await cat_repository.delete_by_uuid(cat_uuid)
     return
 
-@router.get("/cats/{cat_id}")
-async def get_cat_by_id(
-    cat_id: int,
+@router.get("/cats/{cat_uuid}")
+async def get_cat_by_uuid(
+    cat_uuid: UUID,
     cat_repository: CatRepository = Depends(get_cat_repository),
     current_cat: Cat = Depends(get_current_admin),
 ):
-    """Get a cat by its ID. Admin access required."""
-    cat = await cat_repository.get_by_id(cat_id)
+    """Get a cat by its UUID. Admin access required."""
+    cat = await cat_repository.get_by_uuid(cat_uuid)
     if not cat:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Cat not found"
@@ -103,56 +106,56 @@ async def get_all_missions(
     missions = await mission_repository.get_all_missions()
     return [MissionResponse.from_mission(mission) for mission in missions]
 
-@router.get("/mission/{mission_id}", response_model=MissionResponse)
-async def get_mission_by_id(
-    mission_id: int,
+@router.get("/mission/{mission_uuid}", response_model=MissionResponse)
+async def get_mission_by_uuid(
+    mission_uuid: UUID,
     mission_repository: MissionRepository = Depends(get_mission_repository),
     current_cat: Cat = Depends(get_current_admin),
 ):
-    """Get a mission by its ID. Admin access required."""
-    mission = await mission_repository.get_by_id(mission_id)
+    """Get a mission by its UUID. Admin access required."""
+    mission = await mission_repository.get_by_uuid(mission_uuid)
     if not mission:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found"
         )
     return MissionResponse.from_mission(mission)
 
-@router.delete("/mission/delete/{mission_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_mission_by_id(
-    mission_id: int,
+@router.delete("/mission/delete/{mission_uuid}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_mission_by_uuid(
+    mission_uuid: UUID,
     mission_repository: MissionRepository = Depends(get_mission_repository),
     current_cat: Cat = Depends(get_current_admin),
 ):
-    """Delete a mission by its ID. Admin access required."""
-    mission = await mission_repository.get_by_id(mission_id)
+    """Delete a mission by its UUID. Admin access required."""
+    mission = await mission_repository.get_by_uuid(mission_uuid)
     if not mission:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found"
         )
-    await mission_repository.delete_mission_by_id(mission_id)
+    await mission_repository.delete_mission_by_uuid(mission_uuid)
 
-@router.put("/mission/complete/{mission_id}", response_model=MissionResponse)
-async def complete_mission_by_id(
-    mission_id: int,
+@router.put("/mission/complete/{mission_uuid}", response_model=MissionResponse)
+async def complete_mission_by_uuid(
+    mission_uuid: UUID,
     mission_repository: MissionRepository = Depends(get_mission_repository),
     current_cat: Cat = Depends(get_current_admin),
 ):
-    """Mark a mission as completed by its ID. Admin access required."""
-    mission = await mission_repository.set_completed_mission(mission_id)
+    """Mark a mission as completed by its UUID. Admin access required."""
+    mission = await mission_repository.set_completed_mission(mission_uuid)
     return MissionResponse.from_mission(mission)
 
-@router.put("/mission/assign/{mission_id}", response_model=MissionResponse)
+@router.put("/mission/assign/{mission_uuid}", response_model=MissionResponse)
 async def assign_cats_to_mission(
-    mission_id: int,
+    mission_uuid: UUID,
     request: AssignCatsRequest,
     mission_repository: MissionRepository = Depends(get_mission_repository),
     current_cat: Cat = Depends(get_current_admin),
 ):
     """Assign cats to a mission. Admin access required."""
-    if not request.cat_ids:
+    if not request.cat_uuids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="cat_ids query parameter is required and cannot be empty"
+            detail="cat_uuids query parameter is required and cannot be empty"
         )
-    mission = await mission_repository.assigne_cats_to_mission(mission_id, request.cat_ids)
+    mission = await mission_repository.assign_cats_to_mission(mission_uuid, request.cat_uuids)
     return MissionResponse.from_mission(mission)

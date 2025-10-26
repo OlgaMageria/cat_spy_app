@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from datetime import datetime
+from uuid import UUID
 
 from src.presentation.schemas.targets import TargetCreate, TargetResponse
 
@@ -8,7 +9,7 @@ class MissionCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=255)
     targets: List[TargetCreate] = Field(..., min_items=1, max_items=3)
-    cat_ids: Optional[List[int]] = Field(default=None)
+    cat_uuids: Optional[List[UUID]] = Field(default=None)
     
     @field_validator('name', 'description')
     @classmethod
@@ -23,13 +24,13 @@ class MissionCreate(BaseModel):
         return v
 
 class MissionResponse(BaseModel):
-    id: int
+    uuid: UUID
     name: str
     description: Optional[str]
-    is_completed: bool
+    status: str
     created_at: datetime
     targets: List[TargetResponse]
-    cat_ids: List[int]
+    cat_uuids: List[UUID]
     
     class Config:
         from_attributes = True
@@ -37,26 +38,25 @@ class MissionResponse(BaseModel):
     @classmethod
     def from_mission(cls, mission):
         return cls(
-            id=mission.id,
+            uuid=mission.uuid,
             name=mission.name,
             description=mission.description,
             created_at=mission.created_at,
             updated_at=mission.updated_at,
-            is_completed=mission.is_completed,
+            status=mission.status,
             targets=[
                 {
-                    "id": target.id,
+                    "uuid": target.uuid,
                     "name": target.name,
                     "country": target.country,
-                    "is_completed": target.is_completed,
-                    "mission_id": target.mission_id,
+                    "status": target.status,
+                    "mission_uuid": target.mission_uuid,
                     "created_at": target.created_at
                 }
                 for target in mission.mission_target
             ],
-            cat_ids=[cat.id for cat in mission.cat]
+            cat_uuids=[cat.uuid for cat in mission.cat]
         )
 
 class AssignCatsRequest(BaseModel):
-    cat_ids: list[int] = Field(..., min_items=1)
-    
+    cat_uuids: list[UUID] = Field(..., min_items=1)

@@ -7,9 +7,9 @@ from jose import JWTError, jwt
 
 from src.config.config import config
 from src.infrastructure.database.repositories.cats import (
-    get_cat_repository,
     CatRepository,
 )
+from src.presentation.dependencies import get_cat_repository
 import logging
 
 logging.basicConfig(level=logging.INFO)
