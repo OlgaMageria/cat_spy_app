@@ -17,9 +17,9 @@ class Mission:
     name: str
     description: str
     status: MissionStatus
-    assigned_cat_uuids: List[UUID] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=datetime.now(timezone.utc))
+    cat_uuids: List[UUID] = field(default_factory=list)
+    created_at: datetime = field(default_factory=datetime.now())
+    updated_at: datetime = field(default_factory=datetime.now())
     completed_at: Optional[datetime] = None
     
     @classmethod
@@ -34,25 +34,25 @@ class Mission:
     
     def assign_cat(self, cat_uuid: UUID) -> None:
         """Assign a cat to the mission"""
-        if cat_uuid not in self.assigned_cat_uuids:
-            self.assigned_cat_uuids.append(cat_uuid)
-            self.status = MissionStatus.IN_PROGRESS
-            self.updated_at = datetime.now(timezone.utc)
+        if cat_uuid not in self.cat_uuids:
+            self.cat_uuids.append(cat_uuid)
+            self.status = MissionStatus.IN_PROGRESS.value
+            self.updated_at = datetime.now()
 
     def remove_cat(self, cat_uuid: UUID) -> None:
         """Remove a cat from the mission"""
-        if cat_uuid in self.assigned_cat_uuids:
-            self.assigned_cat_uuids.remove(cat_uuid)
-            self.updated_at = datetime.now(timezone.utc)
+        if cat_uuid in self.cat_uuids:
+            self.cat_uuids.remove(cat_uuid)
+            self.updated_at = datetime.now()
     
     def complete(self) -> None:
         """Mark mission as completed"""
-        if self.status in [MissionStatus.PENDING, MissionStatus.CANCELLED]:
+        if self.status in [MissionStatus.PENDING.value, MissionStatus.CANCELLED.value]:
             raise ValueError(f"Cannot complete a {self.status.value} mission")
-        self.status = MissionStatus.COMPLETED
-        self.completed_at = datetime.now(timezone.utc)
-        self.updated_at = datetime.now(timezone.utc)
+        self.status = MissionStatus.COMPLETED.value
+        self.completed_at = datetime.now()
+        self.updated_at = datetime.now()
     
     def can_be_assigned(self) -> bool:
         """Check if mission can have cats assigned"""
-        return self.status in [MissionStatus.PENDING, MissionStatus.IN_PROGRESS]
+        return self.status in [MissionStatus.PENDING.value, MissionStatus.IN_PROGRESS.value]

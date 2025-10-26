@@ -146,6 +146,7 @@ class MissionRepository:
         mission.updated_at = domain_mission.updated_at
         mission.completed_at = domain_mission.completed_at
         await self.db.commit()
+        await self.db.refresh(mission)
         return mission
 
     async def assign_cats_to_mission(self, mission_uuid: UUID, cat_uuids: List[UUID]) -> Mission:

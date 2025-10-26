@@ -16,4 +16,4 @@ class MissionDomainService:
         if not mission.can_be_assigned():
             return False
         
-        return cat_id not in mission.assigned_cat_uuids
+        return cat_id not in mission.cat_uuids
